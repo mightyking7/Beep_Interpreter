@@ -1,32 +1,39 @@
 '''
     Purpose:
-        tores a variable's value and type in a dictionary
+        stores a variable's value and type in a dictionary
 
     Parameters:
-        tokenM    - Match object that contains a variable's
-                    type, name, and value.
+        tokenM    -  Match object that contains a variable's type, name, and value.
         varTypeD  -  Dictionary with mapping of var name to data type
         varValueD -  Dictionary with mapping of var name to value
 
     Return:
         Void
 '''
-
-
 def declareVar(tokenMO, varTypeD, varValueD):
-    varType = tokenMO.group(1).upper()
 
-    varName = tokenMO.group(2).upper()
+    try:
+        varType = tokenMO.group(1).upper()
 
-    varValue = tokenMO.group(3)
+        varName = tokenMO.group(2).upper()
 
-    varTypeD[varName] = varType
+        varValue = tokenMO.group(3)
 
-    if varType == 'INT':
-        varValueD[varName] = int(varValue)
+        varTypeD[varName] = varType
 
-    else:
-        varValueD[varName] = varValue
+        if varType == 'INT':
+
+            varValueD[varName] = int(varValue)
+
+        else:
+            varValueD[varName] = varValue
+
+    # If varValue is an empty string,
+    # set it to None in the varValue dictionary
+    except ValueError as e:
+                varValueD[varName] = None
+
+
 
 
 
@@ -46,8 +53,6 @@ def declareVar(tokenMO, varTypeD, varValueD):
     Return:
         Void
 '''
-
-
 def printVariables(varTypeD, varValueD):
     print("Variables:")
 
@@ -70,8 +75,6 @@ def printVariables(varTypeD, varValueD):
     Return:
         Void
 '''
-
-
 def printLabels(labelD):
     print("Labels:")
 

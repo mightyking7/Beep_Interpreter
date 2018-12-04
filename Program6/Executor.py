@@ -15,19 +15,19 @@ class Executor:
     Constructor for Executor
     '''
 
-    def __init__(self):
+    def __init__(self, varTypeD, varValueD, labelD, source):
 
-        self.varTypeD = {}  # dictionary for var data type
+        self.varTypeD = varTypeD    # dictionary for var data type
 
-        self.varValueD = {}  # dictionary for var value
+        self.varValueD = varValueD  # dictionary for var value
 
-        self.labelD = {}  # dictionary for labels
+        self.labelD = labelD        # dictionary for labels
 
-        self.source = []  # list of source code to execute
+        self.source = source        # list of source code to execute
 
-        self.lineNum = 1  # current line being executed
+        self.lineNum = 1            # current line being executed
 
-        self.execCount = 0  # count of lines executed
+        self.execCount = 0          # count of lines executed
 
     '''
          Purpose: 
@@ -47,12 +47,12 @@ class Executor:
 
     def execute(self, fileList, verbose=False):
 
-        printRE = re.compile(r'\s*[\w:]*\s*PRINT\s(.*)$')
-        gotoRE = re.compile(r'\s*[\w:]*\s*GOTO\s(\w+)$')
-        assignRE = re.compile(r'\s*ASSIGN\s(\w+)\s([+*\-&>=]+)?\s?(\w+)?\s?(\w+)?$')
-        ifRE = re.compile(r'\s*([\w\W]*)[Ii][fF]\s(([><=]+)\s(\w+)\s(\w+))\s(\w+)$')
+        commentRE = re.compile(r'#')
+        printRE = re.compile(r'\s*[\w:]*\s*PRINT\s+(.*)$')
+        gotoRE = re.compile(r'\s*[\w:]*\s*GOTO\s+(\w+)$')
+        assignRE = re.compile(r'\s*ASSIGN\s+(\w+)\s+([+\-*&>=<%]+)?\s*(\w+)\s*(\w+)?$')
+        ifRE = re.compile(r'\s*([\w\W]*)[Ii][fF]\s+(([><=]+)\s+(\w+)\s(\w+))\s(\w+)$')
 
-        #TODO Fix nasty code
         self.source = fileList
 
         print("execution begins ...")
@@ -66,20 +66,30 @@ class Executor:
 
                 sys.exit(1)
 
+            if verbose:
+                print("Executing line %d: %s" %(self.lineNum, line))
+
+            # If the line is blank, skip it
+            if re.match('^\n$', line):
+
+                self.lineNum += 1
+
+                continue
+
             if assignRE.match(line) != None:
 
                 assignMO = assignRE.match(line)
 
-                varName = assignMO.group(1).upper()
+                varName = assignMO.group(1)
 
                 op = assignMO.group(2)
 
-                val1 = assignMO.group(3).upper()
+                var1 = assignMO.group(3)
 
-                val2 = assignMO.group(4).upper()
+                var2 = assignMO.group(4)
 
                 try:
-                    self.assignVar(varName, op, val1, val2)
+                    self.assignVar(varName, op, var1, var2)
                 except(InvalidValueType, TooFewOperands, InvalidExpression, VarNotDefined) as e:
                     print("*** line %d error detected ***" % (self.lineNum))
                     print("%-10s %d *** %s ***" % (" ", self.lineNum, str(e.args[0])))
@@ -109,11 +119,13 @@ class Executor:
 
                 gotoMO = gotoRE.match(line)
 
-                label = gotoMO.group(1).upper()
+                label = gotoMO.group(1)
 
                 try:
                     self.goto(label)
 
+                    # lineNum advanced to position of label
+                    self.execCount += 1
                     continue
 
                 except(LabelNotDefined) as e:
@@ -125,28 +137,22 @@ class Executor:
 
                 ifMO = ifRE.match(line)
 
-                op = ifMO.group(3)
+                op  = ifMO.group(3)
 
-                op1 = ifMO.group(4).upper()
+                op1 = ifMO.group(4)
 
-                op2 = ifMO.group(5).upper()
+                op2 = ifMO.group(5)
 
-                label = ifMO.group(6).upper()
+                label = ifMO.group(6)
 
                 try:
-                    self.evalIf(op, op1, op2, label)
+                    if self.evalIf(op, op1, op2, label):
+
+                        # lineNum advanced to position of label
+                        self.execCount +=1
+                        continue
 
                 except(InvalidExpression) as e:
-                    print("*** line %d error detected ***" % (self.lineNum))
-                    print("%-10s %d *** %s ***" % (" ", self.lineNum, str(e.args[0])))
-                    break
-
-                except(LabelNotDefined) as e:
-                    print("*** line %d error detected ***" % (self.lineNum))
-                    print("%-10s %d *** %s ***" % (" ", self.lineNum, str(e.args[0])))
-                    break
-
-                except Exception as e:
                     print("*** line %d error detected ***" % (self.lineNum))
                     print("%-10s %d *** %s ***" % (" ", self.lineNum, str(e.args[0])))
                     break
@@ -157,7 +163,6 @@ class Executor:
 
         print("execution ends, %d lines executed" % (self.execCount))
 
-        printVariables(self.varTypeD, self.varValueD)
 
     '''
          Purpose: 
@@ -177,27 +182,31 @@ class Executor:
 
     def assignVar(self, varName, op, var1, var2):
 
-        varRE = re.compile(r'"(.*)"|^\d+$')
+        varName = varName.upper()
 
         # expression is a varLiteral
         if op == None and var1 != None and var2 == None:
 
-            # verify varName is declared
-            if self.varValueD.get(varName, None) == None:
-                raise VarNotDefined("%s is not defined" % (varName))
+            try:
+                # obtain the value of the varLiteral
+                val1 = self.evalSymbol(var1)
 
-            # obtain the value of the varLiteral
-            val1 = self.evalVar(var1)
+                if val1 != None:
+                    self.varValueD[varName] = val1
 
-            if val1 != None:
-                self.varValueD[varName] = val1
+                # var1 is not a string or int constant or declared variable
+                else:
+                    raise VarNotDefined("%s is not defined" % (var1))
 
-            # var1 is not a string or int constant or declared variable
-            else:
-                raise VarNotDefined("%s is not defined" % (var1))
+            except (VarNotDefined) as e:
+                raise e
+
+            # key not found error
+            except (KeyError) as e:
+                raise VarNotDefined("%s is not defined" %(varName))
 
         # expression has an operator
-        else:
+        elif op != None and var1 != None and var2 != None:
 
             if op == '*':
                 try:
@@ -208,10 +217,10 @@ class Executor:
 
 
             elif op == '+':
-                self.varValueD[varName] = self.varValueD[var1] + int(var2)
+                self.varValueD[varName] = self.varValueD[var1.upper()] + int(var2)
 
             elif op == '-':
-                self.varValueD[varName] = self.varValueD[var1] - var2
+                self.varValueD[varName] = self.varValueD[var1.upper()] - int(var2)
 
             elif op == '>':
 
@@ -238,9 +247,13 @@ class Executor:
                     print("*** line %d error detected ***" % (self.lineNum))
                     print("%-10s %d *** %s ***" % (" ", self.lineNum, str(e.args[1])))
                     raise e
-
+                
             else:
                 raise InvalidExpression("%s is not a valid operator" % (op))
+
+        else:
+            raise TooFewOperands("An operator and two operands are required for this operation")
+
 
     '''
          Purpose: 
@@ -260,9 +273,9 @@ class Executor:
 
     def replicate(self, var1, var2):
 
-        val1 = self.evalVar(var1)
+        val1 = self.evalSymbol(var1)
 
-        val2 = self.evalVar(var2)
+        val2 = self.evalSymbol(var2)
 
         if val1 != None and val2 != None:
             return val1 * int(val2)
@@ -346,8 +359,8 @@ class Executor:
 
     def concat(self, var1, var2):
 
-        val1 = self.evalVar(var1)
-        val2 = self.evalVar(var2)
+        val1 = self.evalSymbol(var1)
+        val2 = self.evalSymbol(var2)
 
         if val1 != None and val2 != None:
             return val1 + val2
@@ -376,53 +389,81 @@ class Executor:
             true if value of tick greater than or equal to count 
     
         Return:
-            Void
+            True if expression is true and source line
+            has been branched to position of label, False otherwise.
     '''
 
     def evalIf(self, op, op1, op2, label):
 
-        val1 = self.evalVar(op1)
-        val2 = self.evalVar(op2)
+        val1 = self.evalSymbol(op1)
+
+        val2 = self.evalSymbol(op2)
+
+        evaluated = False
 
         try:
 
             if op == '>' and self.evalGreater(val1, val2):
                 self.goto(label)
+                evaluated = True
 
             elif op == '>=' and self.evalGreater(val1, val2, True):
                 self.goto(label)
+                evaluated = True
 
             elif op == '<' and self.evalLess(val1, val2):
                 self.goto(label)
+                evaluated = True
 
             elif op == '<=' and self.evalLess(val1, val2, True):
                 self.goto(label)
+                evaluated = True
 
-        except (InvalidExpression, LabelNotDefined, Exception) as e:
-            raise e
+        except (InvalidValueType) as e:
+            raise InvalidExpression("Invalid comparison: %s" %(e.args[0]))
+
+        except(LabelNotDefined) as e:
+            raise InvalidExpression("Cannot branch to %s: %s" %(label, e.args[0]))
+
+        except(Exception) as e:
+            raise InvalidExpression("Invalid comparison: %s" %(e.args[0]))
+
+        return evaluated
 
     '''
-        Evaluates the value of var, whether a variable
-        numeric constant or string constant and returns the
-        value. If var  None is returned.
+        Purpose:
+            Evaluates the value of a symbol.
+            
+         Parameters:
+            symbol -  variable, numeric constant, or string constant to parse
+         
+         Notes:
+            Assumed that var is in same format as in the BEEP source file.
+            If symbol is a variable, upper() used to obtain key for relative value 
+            If symbol is a string constant, contents within quotes " " is returned
+            If symbol is a numeric constant, parsed integer is returned
+            
+         Return:
+         
+             Value of symbol or None if symbol is not a variable, numeric constant, or string constant
+         
     '''
-
-    def evalVar(self, var):
+    def evalSymbol(self, symbol):
 
         stringRE = re.compile(r'"(.*)"')
         intRE = re.compile(r'^\d+$')
 
         # check if varLiteral is a variable
-        if self.varValueD.get(var, None) != None:
-            return self.varValueD[var]
+        if self.varValueD.get(symbol.upper(), None) != None:
+            return self.varValueD[symbol.upper()]
 
         # Var Literal is String
-        elif stringRE.match(var) != None:
-            return stringRE.match(var).group()
+        elif stringRE.match(symbol) != None:
+            return stringRE.match(symbol).group(1)
 
         # Var Literal is an Int
-        elif intRE.match(var) != None:
-            return intRE.match(var).group()
+        elif intRE.match(symbol) != None:
+            return intRE.match(symbol).group()
 
         else:
             return None
@@ -432,11 +473,13 @@ class Executor:
     '''
     def goto(self, label):
 
-        if self.labelD.get(label, None) == None:
+        l = label.upper()
+
+        if self.labelD.get(l, None) == None:
             raise LabelNotDefined("Label %s is not defined" %(label))
 
         else:
-            self.lineNum = self.labelD.get(label, None)
+            self.lineNum = self.labelD[l]
 
     '''
     
@@ -446,15 +489,11 @@ class Executor:
         # iterate over arguments to print
         for arg in args:
 
-            if re.search('"', arg):
-                val = self.evalVar(arg)
-
-            else:
-                val = self.evalVar(arg.upper())
+            val = self.evalSymbol(arg)
 
             # value is not a string const, numeric const, or variable
             if val == None:
-                raise InvalidValueType("%s is not a variable, numeric constant, or string constant" % (arg))
+                raise InvalidValueType("%s is not a variable, numeric constant, or string constant" %(arg))
 
             print(val, end=" ")
 

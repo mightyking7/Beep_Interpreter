@@ -1,3 +1,5 @@
+# p6InputA.txt
+# © 2018 Larry W. Clark, this document may not be copied to any other website.
 VAR int count 0
 VAR string result
 VAR string symbol "ho"
@@ -8,7 +10,7 @@ VAR int iter 4
 PRINT "begins..."
 PRINT "Top:...count=" count "tick=" tick "symbol=" symbol
 ASSIGN count + count 1
-IF >= tick limit pastlimit
+IF > tick limit pastlimit
     ASSIGN result * symbol tick
     PRINT result
     ASSIGN tick + tick 1

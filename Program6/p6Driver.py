@@ -1,23 +1,41 @@
 from p5Dict import declareVar, printLabels, printVariables
-from p6Exec import Executor
+from Executor import Executor
 import sys, os, re
 
-'''
-Parses the BEEP source file, stores lables, vars,
-and excutes the source code.
-'''
 
+'''                                                                      
+     Purpose:                                                            
+        Parses the BEEP source file to stores labels and variables.
+        Creates an executor to execute the source code and
+        prints the variables and labels parsed from the file.                                    
+
+    Parameters:                                                          
+        argv  -  Command line arguments
+
+    Notes:                                                                            
+        Main must be called with the following arguments:
+        p6Driver.py <BEEP source> [-v]
+                       
+    Return:                                                              
+'''
 
 def main(argv):
-    fileL = []  # lines of file stored as entry in list
 
-    lineNum = 1  # line number in file
+    varTypeD  = {}  # dictionary for variable types
 
-    NUM_ARGS = 2  # Minimum number of args
+    varValueD = {}  # dictionary for variable values
 
-    MAX_ARGS = 3  # Maximum number of args
+    labelD    = {}  # dictionary for labels
 
-    verbose = False  # Flag for -v option
+    source = []     # source code
+
+    lineNum = 1     # file line number
+
+    NUM_ARGS = 2    # Minimum number of args
+
+    MAX_ARGS = 3    # Maximum number of args
+
+    verbose = False # Flag for -v option
 
     numArgs = len(argv)
 
@@ -45,13 +63,13 @@ def main(argv):
 
     # compile the regular expressions
     labelRE = re.compile(r'\s*(\w+):')
-    varRE = re.compile(r'^VAR\s([a-zA-Z]+)\s([a-zA-Z]+)\s"?(.*?)"?$')
+    varRE = re.compile(r'^VAR\s([\w]+)\s([\w]+)\s"?(.*?)"?$')
 
-    # parse the file for labels and variables
+    # parse file for labels and variables and print contents
 
-    executor = Executor()
+    file = open(filename, "r", encoding='latin-1')
 
-    file = open(filename, 'r', encoding='latin-1')
+    print('BEEP source code in %s:' %(filename))
 
     while True:
 
@@ -66,35 +84,38 @@ def main(argv):
 
             label = labelMO.group(1).upper()
 
-            if executor.labelD.get(label, None) != None:
+            if labelD.get(label, None) != None:
                 print("***Error: label '%s' appears on multiple lines: %d and %d" % (label, labelD[label], lineNum))
 
             else:
-                executor.labelD[label] = lineNum
+                labelD[label] = lineNum
 
         elif varRE.match(line) != None:
 
             varMO = varRE.match(line)
 
-            declareVar(varMO, executor.varTypeD, executor.varValueD)
+            declareVar(varMO, varTypeD, varValueD)
 
-        fileL.append(line)
+        source.append(line)
 
         # print line and line number
-        print(lineNum, line)
+        print("%d. %s" %(lineNum, line))
 
         lineNum += 1
 
     # print labels and variables
-    printVariables(executor.varTypeD, executor.varValueD)
+    printVariables(varTypeD, varValueD)
 
-    printLabels(executor.labelD)
+    printLabels(labelD)
+
+    executor = Executor(varTypeD, varValueD, labelD, source)
 
     # execute the source
     if verbose:
-        executor.execute(fileL, verbose=True)
+        executor.execute(source, verbose=True)
+
     else:
-        executor.execute(fileL)
+        executor.execute(source)
 
 
 if __name__ == "__main__":

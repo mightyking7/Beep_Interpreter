@@ -1,3 +1,5 @@
+# p6InputL.txt
+# © 2018 Larry W. Clark, this document may not be copied to any other website.
 VAR int count 0
 VAR string result
 VAR string symbol "ho"
